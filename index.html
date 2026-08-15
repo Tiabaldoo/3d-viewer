@@ -32,9 +32,9 @@
 <div id="viewer"></div>
 <div id="loading"><div class="loader-card"><div class="loader-title" id="status">Загрузка 3D-модели…</div><div class="loader-sub">Файл большой, первая загрузка может занять немного времени</div><div class="bar"><div id="fill" class="fill"></div></div></div></div>
 <div class="topbar"><div class="brand"><div class="brand-icon">◈</div><div><div class="brand-title">3D VIEWER</div><div class="brand-sub">Интерактивный просмотр модели</div></div></div><button id="helpBtn" class="ui-btn">ⓘ Помощь</button></div>
-<div id="help" class="help-card"><div class="help-title">Управление</div><div class="row"><b>Свободное вращение:</b> ведите одним пальцем или левой кнопкой мыши.</div><div class="row"><b>Поворот влево/вправо:</b> положите два пальца рядом и ведите ими вместе горизонтально.</div><div class="row"><b>Масштаб:</b> плавно сведите или разведите два пальца; на ПК используйте колесо мыши.</div><div class="row"><b>Перемещение:</b> ведите двумя пальцами преимущественно вверх/вниз; на ПК — правой кнопкой мыши.</div><div class="row"><b>Сброс:</b> кнопка снизу возвращает исходный вид.</div></div>
+<div id="help" class="help-card"><div class="help-title">Управление</div><div class="row"><b>Свободное вращение:</b> ведите одним пальцем или левой кнопкой мыши.</div><div class="row"><b>Поворот двумя пальцами:</b> положите два пальца на экран и закручивайте их, как будто поворачиваете ручку. Модель будет вращаться в ту же сторону.</div><div class="row"><b>Масштаб:</b> плавно сведите или разведите два пальца; на ПК используйте колесо мыши.</div><div class="row"><b>Перемещение:</b> ведите двумя пальцами вместе; на ПК — правой кнопкой мыши.</div><div class="row"><b>Сброс:</b> кнопка снизу возвращает исходный вид.</div></div>
 <div class="toolbar"><button id="front" class="ui-btn tool" title="Вид спереди">⌂</button><button id="fit" class="ui-btn tool" title="Вписать модель">◇</button><button id="fullscreen" class="ui-btn tool" title="На весь экран">⛶</button></div>
-<div id="gesture" class="gesture">☝ 1 палец — свободное вращение · 2 пальца влево/вправо — поворот</div>
+<div id="gesture" class="gesture">☝ 1 палец — вращение · 2 пальца — масштаб, сдвиг и закручивание</div>
 <div class="bottom"><button id="reset" class="ui-btn">↻ Сброс</button><button id="zoomOut" class="ui-btn">−</button><button id="zoomIn" class="ui-btn">＋</button><button id="front2" class="ui-btn">Вид спереди</button></div>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}</script>
 <script type="module">
@@ -53,33 +53,25 @@ function fitObject(obj){const box=new THREE.Box3().setFromObject(obj),center=box
 function resetView(){camera.position.copy(homePos);camera.up.set(0,1,0);controls.target.copy(homeTarget);controls.update()}function frontView(){camera.position.copy(frontPos);camera.up.set(0,1,0);controls.target.set(0,0,0);controls.update()}function fitView(){if(mesh)fitObject(mesh)}function dolly(mult){const dir=camera.position.clone().sub(controls.target);dir.multiplyScalar(mult);const d=dir.length();if(d<controls.minDistance||d>controls.maxDistance)return;camera.position.copy(controls.target).add(dir);controls.update()}
 new STLLoader().load('model.stl',geometry=>{geometry.computeVertexNormals();const material=new THREE.MeshStandardMaterial({color:0xe7d6ae,roughness:.72,metalness:0,side:THREE.DoubleSide});mesh=new THREE.Mesh(geometry,material);mesh.castShadow=true;mesh.receiveShadow=true;scene.add(mesh);fitObject(mesh);loading.style.opacity='0';setTimeout(()=>loading.style.display='none',380);setTimeout(()=>document.getElementById('gesture').style.opacity='.25',5500)},xhr=>{if(xhr.total){const p=Math.round(xhr.loaded/xhr.total*100);fill.style.width=p+'%';status.textContent='Загрузка 3D-модели… '+p+'%'}else status.textContent='Загружено '+(xhr.loaded/1024/1024).toFixed(1)+' МБ…'},err=>{console.error(err);status.textContent='Не удалось загрузить модель'});
 
-// Дополнительный мобильный жест: два пальца вместе влево/вправо = горизонтальный поворот.
-let twoMode=null,lastCenterX=0,lastCenterY=0,startDistance=0,lastDistance=0;
-function touchMetrics(t){const a=t[0],b=t[1];const dx=b.clientX-a.clientX,dy=b.clientY-a.clientY;return{x:(a.clientX+b.clientX)/2,y:(a.clientY+b.clientY)/2,d:Math.hypot(dx,dy)}}
-renderer.domElement.addEventListener('touchstart',e=>{if(e.touches.length===2){const m=touchMetrics(e.touches);lastCenterX=m.x;lastCenterY=m.y;startDistance=lastDistance=m.d;twoMode=null}},true);
+// Двухпальцевое закручивание: угол между пальцами поворачивает камеру вокруг оси взгляда.
+let twistActive=false,lastTwistAngle=0;
+function touchAngle(t){const a=t[0],b=t[1];return Math.atan2(b.clientY-a.clientY,b.clientX-a.clientX)}
+renderer.domElement.addEventListener('touchstart',e=>{if(e.touches.length===2){lastTwistAngle=touchAngle(e.touches);twistActive=true}},true);
 renderer.domElement.addEventListener('touchmove',e=>{
-  if(e.touches.length!==2)return;
-  const m=touchMetrics(e.touches),dx=m.x-lastCenterX,dy=m.y-lastCenterY;
-  const pinch=Math.abs(m.d-startDistance)/Math.max(startDistance,1);
-  if(twoMode===null){
-    const moved=Math.hypot(dx,dy);
-    if(moved<4)return;
-    if(pinch>.018)twoMode='native';
-    else if(Math.abs(dx)>Math.abs(dy)*1.25)twoMode='rotate';
-    else twoMode='native';
+  if(!twistActive||e.touches.length!==2)return;
+  const angle=touchAngle(e.touches);
+  let delta=angle-lastTwistAngle;
+  if(delta>Math.PI)delta-=Math.PI*2;
+  if(delta<-Math.PI)delta+=Math.PI*2;
+  if(Math.abs(delta)>.001){
+    const viewAxis=controls.target.clone().sub(camera.position).normalize();
+    const q=new THREE.Quaternion().setFromAxisAngle(viewAxis,-delta);
+    camera.up.applyQuaternion(q).normalize();
   }
-  if(twoMode==='rotate'){
-    e.preventDefault();e.stopImmediatePropagation();
-    const offset=camera.position.clone().sub(controls.target);
-    const axis=camera.up.clone().normalize();
-    offset.applyAxisAngle(axis,-dx*.0045);
-    camera.position.copy(controls.target).add(offset);
-    camera.lookAt(controls.target);
-  }
-  lastCenterX=m.x;lastCenterY=m.y;lastDistance=m.d;
+  lastTwistAngle=angle;
 },{capture:true,passive:false});
-renderer.domElement.addEventListener('touchend',e=>{if(e.touches.length<2){twoMode=null;startDistance=lastDistance=0}},true);
-renderer.domElement.addEventListener('touchcancel',()=>{twoMode=null;startDistance=lastDistance=0},true);
+renderer.domElement.addEventListener('touchend',e=>{if(e.touches.length<2)twistActive=false},true);
+renderer.domElement.addEventListener('touchcancel',()=>{twistActive=false},true);
 
 const help=document.getElementById('help');document.getElementById('helpBtn').onclick=()=>help.classList.toggle('show');document.getElementById('reset').onclick=resetView;document.getElementById('front').onclick=frontView;document.getElementById('front2').onclick=frontView;document.getElementById('fit').onclick=fitView;document.getElementById('zoomIn').onclick=()=>dolly(.88);document.getElementById('zoomOut').onclick=()=>dolly(1.14);document.getElementById('fullscreen').onclick=async()=>{try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();else await document.exitFullscreen()}catch(e){}};
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);controls.handleResize()});
