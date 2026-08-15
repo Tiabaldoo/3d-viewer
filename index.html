@@ -2,24 +2,102 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+  <meta name="theme-color" content="#eee9e1" />
   <title>3D-модель</title>
   <style>
-    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#f3f4f6;font-family:Arial,sans-serif}
-    #viewer{position:fixed;inset:0}
-    #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:10;background:#f3f4f6}
-    .card{width:min(420px,80vw);text-align:center}
-    .bar{height:8px;background:#d9dde3;border-radius:99px;overflow:hidden;margin-top:14px}
-    .fill{height:100%;width:0;background:#333;border-radius:99px;transition:width .15s}
-    #hint{position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);background:rgba(255,255,255,.85);backdrop-filter:blur(8px);padding:9px 14px;border-radius:999px;font-size:13px;color:#333;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.08);z-index:5}
-    #reset{position:fixed;right:16px;top:max(16px,env(safe-area-inset-top));z-index:5;border:0;background:rgba(255,255,255,.9);padding:10px 14px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.08);cursor:pointer}
+    :root{
+      --ink:#2f2d2a;
+      --muted:#77716a;
+      --glass:rgba(255,255,255,.72);
+      --line:rgba(64,57,49,.12);
+      --shadow:0 12px 40px rgba(67,56,43,.12);
+    }
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;overscroll-behavior:none;background:#eee9e1;font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:var(--ink)}
+    body{touch-action:none;background:radial-gradient(circle at 52% 42%,#faf8f4 0%,#f3efe8 43%,#e9e3da 100%)}
+    #viewer{position:fixed;inset:0;touch-action:none}
+    canvas{display:block;width:100%;height:100%;touch-action:none;outline:none}
+
+    .topbar{position:fixed;left:0;right:0;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;padding:max(16px,env(safe-area-inset-top)) 18px 12px;pointer-events:none}
+    .brand,.ui-btn,.help-card,.gesture,.loader-card{background:var(--glass);border:1px solid rgba(255,255,255,.7);box-shadow:var(--shadow);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+    .brand{display:flex;gap:11px;align-items:center;padding:10px 13px;border-radius:16px;pointer-events:auto}
+    .brand-icon{width:35px;height:35px;border-radius:11px;display:grid;place-items:center;background:rgba(88,77,63,.08);font-size:20px}
+    .brand-title{font-size:14px;font-weight:750;letter-spacing:.01em}
+    .brand-sub{font-size:11px;color:var(--muted);margin-top:2px}
+    .ui-btn{border-radius:14px;border:1px solid rgba(255,255,255,.75);padding:10px 13px;color:var(--ink);font:inherit;font-size:13px;font-weight:650;cursor:pointer;pointer-events:auto}
+    .ui-btn:active{transform:scale(.98)}
+
+    .toolbar{position:fixed;right:16px;top:50%;transform:translateY(-50%);z-index:5;display:flex;flex-direction:column;gap:8px}
+    .tool{width:46px;height:46px;padding:0;display:grid;place-items:center;font-size:19px}
+
+    .bottom{position:fixed;left:50%;bottom:max(17px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:5;display:flex;gap:8px;align-items:center;max-width:calc(100vw - 30px)}
+    .bottom .ui-btn{white-space:nowrap}
+    .gesture{position:fixed;left:50%;bottom:max(82px,calc(env(safe-area-inset-bottom) + 82px));transform:translateX(-50%);z-index:4;padding:9px 14px;border-radius:999px;font-size:12px;color:#5e5850;white-space:nowrap;transition:opacity .4s ease;pointer-events:none}
+
+    #loading{position:fixed;inset:0;display:grid;place-items:center;z-index:20;background:radial-gradient(circle at 50% 42%,#faf8f4,#ece6dd);transition:opacity .35s ease}
+    .loader-card{width:min(390px,82vw);padding:20px 20px 18px;border-radius:22px;text-align:center}
+    .loader-title{font-weight:730;font-size:15px}
+    .loader-sub{font-size:12px;color:var(--muted);margin-top:5px}
+    .bar{height:7px;background:rgba(82,72,59,.10);border-radius:99px;overflow:hidden;margin-top:15px}
+    .fill{height:100%;width:0;background:linear-gradient(90deg,#b9a983,#8e7e5d);border-radius:99px;transition:width .15s}
+
+    .help-card{position:fixed;right:16px;top:78px;z-index:8;width:min(300px,calc(100vw - 32px));padding:15px;border-radius:20px;display:none}
+    .help-card.show{display:block}
+    .help-title{font-weight:750;font-size:14px;margin-bottom:9px}
+    .row{padding:9px 0;border-top:1px solid var(--line);font-size:12px;line-height:1.45;color:#5c564f}
+    .row:first-of-type{border-top:0}
+    .row b{color:var(--ink)}
+
+    @media(max-width:600px){
+      .brand-sub{display:none}.brand{padding:8px 10px}.brand-icon{width:32px;height:32px}
+      .topbar{padding-left:12px;padding-right:12px}.toolbar{right:10px}.tool{width:43px;height:43px}
+      .bottom{bottom:max(12px,env(safe-area-inset-bottom))}.bottom .ui-btn{padding:10px 12px;font-size:12px}
+      .gesture{bottom:max(68px,calc(env(safe-area-inset-bottom) + 68px));font-size:11px}
+    }
   </style>
 </head>
 <body>
 <div id="viewer"></div>
-<div id="loading"><div class="card"><div id="status">Загрузка 3D-модели…</div><div class="bar"><div id="fill" class="fill"></div></div></div></div>
-<button id="reset">Сбросить вид</button>
-<div id="hint">Вращение — пальцем/мышью · Масштаб — щипком/колесом</div>
+
+<div id="loading">
+  <div class="loader-card">
+    <div class="loader-title" id="status">Загрузка 3D-модели…</div>
+    <div class="loader-sub">Файл большой, первая загрузка может занять немного времени</div>
+    <div class="bar"><div id="fill" class="fill"></div></div>
+  </div>
+</div>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-icon">◈</div>
+    <div><div class="brand-title">3D VIEWER</div><div class="brand-sub">Интерактивный просмотр модели</div></div>
+  </div>
+  <button id="helpBtn" class="ui-btn">ⓘ Помощь</button>
+</div>
+
+<div id="help" class="help-card">
+  <div class="help-title">Управление</div>
+  <div class="row"><b>Вращение:</b> ведите одним пальцем или левой кнопкой мыши. Модель можно свободно переворачивать на 360°.</div>
+  <div class="row"><b>Масштаб:</b> сведите или разведите два пальца; на ПК используйте колесо мыши.</div>
+  <div class="row"><b>Перемещение:</b> двумя пальцами; на ПК — правой кнопкой мыши.</div>
+  <div class="row"><b>Сброс:</b> кнопка снизу возвращает исходный вид.</div>
+</div>
+
+<div class="toolbar">
+  <button id="front" class="ui-btn tool" title="Вид спереди">⌂</button>
+  <button id="fit" class="ui-btn tool" title="Вписать модель">◇</button>
+  <button id="fullscreen" class="ui-btn tool" title="На весь экран">⛶</button>
+</div>
+
+<div id="gesture" class="gesture">☝ Вращайте модель одним пальцем · двумя — масштаб и перемещение</div>
+
+<div class="bottom">
+  <button id="reset" class="ui-btn">↻ Сброс</button>
+  <button id="zoomOut" class="ui-btn">−</button>
+  <button id="zoomIn" class="ui-btn">＋</button>
+  <button id="front2" class="ui-btn">Вид спереди</button>
+</div>
 
 <script type="importmap">
 {
@@ -31,7 +109,7 @@
 </script>
 <script type="module">
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { TrackballControls } from 'three/addons/controls/TrackballControls.js';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 
 const host = document.getElementById('viewer');
@@ -40,91 +118,112 @@ const status = document.getElementById('status');
 const fill = document.getElementById('fill');
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xf3f4f6);
+scene.background = null;
 
-const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.1, 100000);
-const renderer = new THREE.WebGLRenderer({antialias:true});
+const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, .1, 100000);
+const renderer = new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.04;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 host.appendChild(renderer.domElement);
 
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.dampingFactor = .06;
+const controls = new TrackballControls(camera, renderer.domElement);
+controls.rotateSpeed = 3.1;
+controls.zoomSpeed = 1.15;
+controls.panSpeed = .55;
+controls.staticMoving = false;
+controls.dynamicDampingFactor = .10;
+controls.noRotate = false;
+controls.noZoom = false;
+controls.noPan = false;
 
-scene.add(new THREE.HemisphereLight(0xffffff,0x777777,2.4));
-const key = new THREE.DirectionalLight(0xffffff,3.0); key.position.set(2,3,4); scene.add(key);
-const rim = new THREE.DirectionalLight(0xffffff,1.5); rim.position.set(-3,1,-2); scene.add(rim);
+const hemi = new THREE.HemisphereLight(0xfffbef,0x756d63,2.0); scene.add(hemi);
+const key = new THREE.DirectionalLight(0xfff4d7,4.2); key.position.set(3,4,5); key.castShadow=true; scene.add(key);
+const fillLight = new THREE.DirectionalLight(0xdfe8ff,1.3); fillLight.position.set(-4,1,3); scene.add(fillLight);
+const rim = new THREE.DirectionalLight(0xffead0,2.0); rim.position.set(-2,3,-5); scene.add(rim);
 
-let mesh, homePos = new THREE.Vector3(), homeTarget = new THREE.Vector3();
+let mesh;
+let modelSize = 1;
+const homePos = new THREE.Vector3();
+const homeTarget = new THREE.Vector3();
+const frontPos = new THREE.Vector3();
 
 function fitObject(obj){
   const box = new THREE.Box3().setFromObject(obj);
   const center = box.getCenter(new THREE.Vector3());
   const size = box.getSize(new THREE.Vector3());
   obj.position.sub(center);
-
-  const maxDim = Math.max(size.x,size.y,size.z);
+  modelSize = Math.max(size.x,size.y,size.z);
   const fov = THREE.MathUtils.degToRad(camera.fov);
-  let dist = (maxDim/2)/Math.tan(fov/2);
-  dist *= 1.35;
-
-  camera.near = Math.max(maxDim/1000,0.01);
-  camera.far = maxDim*100;
+  let dist=(modelSize/2)/Math.tan(fov/2);
+  dist*=1.42;
+  camera.near=Math.max(modelSize/2000,.01);
+  camera.far=modelSize*100;
   camera.updateProjectionMatrix();
-  camera.position.set(dist*.65, dist*.45, dist);
+  camera.position.set(dist*.56,dist*.30,dist);
   controls.target.set(0,0,0);
-  controls.minDistance = maxDim*.08;
-  controls.maxDistance = maxDim*12;
+  controls.minDistance=modelSize*.12;
+  controls.maxDistance=modelSize*14;
   controls.update();
-
   homePos.copy(camera.position);
   homeTarget.copy(controls.target);
+  frontPos.set(0,0,dist*1.1);
 }
 
-new STLLoader().load(
-  'model.stl',
-  geometry => {
-    geometry.computeVertexNormals();
-    const material = new THREE.MeshStandardMaterial({color:0xd9dde3, roughness:.58, metalness:.03, side:THREE.DoubleSide});
-    mesh = new THREE.Mesh(geometry,material);
-    scene.add(mesh);
-    fitObject(mesh);
-    loading.style.display='none';
-  },
-  xhr => {
-    if(xhr.total){
-      const p=Math.round(xhr.loaded/xhr.total*100);
-      fill.style.width=p+'%';
-      status.textContent='Загрузка 3D-модели… '+p+'%';
-    } else {
-      status.textContent='Загружено '+(xhr.loaded/1024/1024).toFixed(1)+' МБ…';
-    }
-  },
-  err => {
-    console.error(err);
-    status.textContent='Не удалось загрузить model.stl';
-  }
-);
+function resetView(){camera.position.copy(homePos);camera.up.set(0,1,0);controls.target.copy(homeTarget);controls.update()}
+function frontView(){camera.position.copy(frontPos);camera.up.set(0,1,0);controls.target.set(0,0,0);controls.update()}
+function fitView(){if(!mesh)return;fitObject(mesh)}
+function dolly(mult){
+  const dir=camera.position.clone().sub(controls.target);
+  dir.multiplyScalar(mult);
+  const d=dir.length();
+  if(d<controls.minDistance||d>controls.maxDistance)return;
+  camera.position.copy(controls.target).add(dir);controls.update();
+}
 
-document.getElementById('reset').onclick=()=>{
-  camera.position.copy(homePos);
-  controls.target.copy(homeTarget);
-  controls.update();
-};
+new STLLoader().load('model.stl', geometry => {
+  geometry.computeVertexNormals();
+  const material = new THREE.MeshStandardMaterial({
+    color:0xe7d6ae,
+    roughness:.72,
+    metalness:0,
+    side:THREE.DoubleSide
+  });
+  mesh=new THREE.Mesh(geometry,material);
+  mesh.castShadow=true;
+  mesh.receiveShadow=true;
+  scene.add(mesh);
+  fitObject(mesh);
+  loading.style.opacity='0';
+  setTimeout(()=>loading.style.display='none',380);
+  setTimeout(()=>document.getElementById('gesture').style.opacity='.25',5500);
+}, xhr => {
+  if(xhr.total){const p=Math.round(xhr.loaded/xhr.total*100);fill.style.width=p+'%';status.textContent='Загрузка 3D-модели… '+p+'%';}
+  else status.textContent='Загружено '+(xhr.loaded/1024/1024).toFixed(1)+' МБ…';
+}, err => {console.error(err);status.textContent='Не удалось загрузить модель';});
+
+const help=document.getElementById('help');
+document.getElementById('helpBtn').onclick=()=>help.classList.toggle('show');
+document.getElementById('reset').onclick=resetView;
+document.getElementById('front').onclick=frontView;
+document.getElementById('front2').onclick=frontView;
+document.getElementById('fit').onclick=fitView;
+document.getElementById('zoomIn').onclick=()=>dolly(.82);
+document.getElementById('zoomOut').onclick=()=>dolly(1.22);
+document.getElementById('fullscreen').onclick=async()=>{try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();else await document.exitFullscreen();}catch(e){}};
 
 addEventListener('resize',()=>{
   camera.aspect=innerWidth/innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth,innerHeight);
+  controls.handleResize();
 });
 
-function animate(){
-  requestAnimationFrame(animate);
-  controls.update();
-  renderer.render(scene,camera);
-}
+function animate(){requestAnimationFrame(animate);controls.update();renderer.render(scene,camera)}
 animate();
 </script>
 </body>
